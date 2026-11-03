@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Literal
 
 import httpx
 from dotenv import load_dotenv
@@ -27,7 +28,9 @@ from comfy_sdk.router_exceptions import RouterError
 ROOT = Path(__file__).parent
 load_dotenv(ROOT / ".env", override=True)  # .env wins over the shell
 
-MODEL = "higgsfield/higgsfield-kling-3-pro"
+WORKFLOW = json.loads((ROOT / "workflows" / "motion-studio.json").read_text())
+MODEL = WORKFLOW["router"]["model"]
+_IN = WORKFLOW["inputs"]
 OUTPUTS = ROOT / "outputs"
 JOBS_FILE = ROOT / "jobs.json"
 OUTPUTS.mkdir(exist_ok=True)
@@ -88,11 +91,13 @@ def router_error(exc: Exception) -> JSONResponse:
 
 # --- API -------------------------------------------------------------------
 class GenerateIn(BaseModel):
-    prompt: str = Field(min_length=1, max_length=2500)
-    aspect_ratio: str = Field("16:9", pattern=r"^(16:9|9:16|1:1)$")
-    duration: int = Field(5, ge=3, le=15)
-    sound: str = Field("on", pattern=r"^(on|off)$")
-    cfg_scale: float = Field(0.5, ge=0, le=1)
+    prompt: str = Field(min_length=1, max_length=_IN["prompt"]["max_length"])
+    aspect_ratio: Literal[tuple(_IN["aspect_ratio"]["enum"])] = _IN["aspect_ratio"]["default"]
+    duration: int = Field(_IN["duration"]["default"], ge=_IN["duration"]["min"],
+                          le=_IN["duration"]["max"])
+    sound: Literal[tuple(_IN["sound"]["enum"])] = _IN["sound"]["default"]
+    cfg_scale: float = Field(_IN["cfg_scale"]["default"], ge=_IN["cfg_scale"]["min"],
+                             le=_IN["cfg_scale"]["max"])
 
 
 app = FastAPI()

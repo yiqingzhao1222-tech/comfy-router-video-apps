@@ -1,0 +1,23 @@
+{
+  "name": "Motion Studio",
+  "description": "Text-to-video: one prompt becomes one clip.",
+  "router": {
+    "model": "higgsfield/higgsfield-kling-3-pro",
+    "mode": "queued",
+    "docs": "https://docs.comfy.org/development/comfy-router/models/higgsfield/higgsfield-kling-3-pro/code.md"
+  },
+  "inputs": {
+    "prompt": { "type": "string", "max_length": 2500 },
+    "aspect_ratio": { "type": "string", "enum": ["16:9", "9:16", "1:1"], "default": "16:9" },
+    "duration": { "type": "integer", "min": 3, "max": 15, "default": 5 },
+    "sound": { "type": "string", "enum": ["on", "off"], "default": "on" },
+    "cfg_scale": { "type": "number", "min": 0, "max": 1, "default": 0.5 }
+  },
+  "steps": [
+    { "id": "submit", "call": "models.submit(model, inputs)", "stores": ["model", "request_id"] },
+    { "id": "poll", "call": "models.handle(model, request_id).status()", "until": "COMPLETED", "shows": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"] },
+    { "id": "check", "fail_if": ["status.error_type is set", "result.status in [nsfw, failed, canceled]", "result.video.url missing"] },
+    { "id": "collect", "call": "handle.get()", "output": "result.video.url" },
+    { "id": "download", "to": "outputs/{job_id}.mp4", "why": "Router keeps results for 24 hours" }
+  ]
+}

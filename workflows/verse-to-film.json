@@ -1,0 +1,40 @@
+{
+  "name": "Verse to Film",
+  "description": "Poem-to-video: each non-empty line becomes its own clip with the line burned in on screen, then the clips are joined into one film.",
+  "router": {
+    "model": "higgsfield/higgsfield-kling-3-pro",
+    "mode": "queued",
+    "docs": "https://docs.comfy.org/development/comfy-router/models/higgsfield/higgsfield-kling-3-pro/code.md"
+  },
+  "limits": {
+    "max_lines": 8,
+    "duration": { "min": 3, "max": 8, "default": 4 },
+    "aspect_ratios": ["16:9", "9:16", "1:1"]
+  },
+  "prompt_template": "A cinematic shot visualizing this line of poetry: \"{line}\". {style}Evocative, atmospheric, no text, letters or captions in frame.",
+  "prompt_template_notes": "{style} is the user's shared style text followed by '. ', or empty when no style is given.",
+  "clip_inputs": {
+    "sound": "off",
+    "cfg_scale": 0.5
+  },
+  "overlay": {
+    "font": "/System/Library/Fonts/Supplemental/Georgia Italic.ttf",
+    "font_fallback": "Pillow default font",
+    "font_size_ratio": 0.055,
+    "baseline_ratio": 0.86,
+    "scrim_rgba": [0, 0, 0, 110],
+    "output_sizes": { "16:9": [1280, 720], "9:16": [720, 1280], "1:1": [960, 960] },
+    "fps": 24
+  },
+  "steps": [
+    { "id": "split", "does": "one clip per non-empty line, up to max_lines" },
+    { "id": "submit", "call": "models.submit(model, {prompt, aspect_ratio, duration, ...clip_inputs})", "per": "line, all at once", "on_409_or_429": "mark WAITING and resubmit on the next poll" },
+    { "id": "poll", "call": "models.handle(model, request_id).status()", "until": "COMPLETED" },
+    { "id": "check", "fail_if": ["status.error_type is set", "result.status in [nsfw, failed, canceled]", "result.video.url missing"] },
+    { "id": "collect", "call": "handle.get()", "output": "result.video.url" },
+    { "id": "download", "to": "poem-video/outputs/{poem_id}_{n}_raw.mp4" },
+    { "id": "caption", "tool": "Pillow", "does": "render the line as a transparent PNG at the output size" },
+    { "id": "burn_in", "tool": "ffmpeg", "does": "scale/crop to output size, overlay caption, H.264, no audio", "to": "poem-video/outputs/{poem_id}_{n}.mp4" },
+    { "id": "join", "tool": "ffmpeg concat", "when": "every clip is DONE or FAILED and at least one is DONE", "to": "poem-video/outputs/{poem_id}_film.mp4" }
+  ]
+}

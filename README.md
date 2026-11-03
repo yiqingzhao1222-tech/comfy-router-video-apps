@@ -62,15 +62,31 @@ browser ──poll──▶ FastAPI ──handle(model, request_id).status()   o
 - **Downloads.** Router keeps results for 24 hours and the provider's video URLs can expire, so the server downloads each MP4 to `outputs/` as soon as it's ready.
 - **Poem text overlay (Verse to Film).** The model is asked *not* to draw text. The app renders each line itself with Pillow (Georgia Italic on macOS, the default font elsewhere) and burns it in with ffmpeg at a fixed size per aspect ratio. Then it joins the finished clips with ffmpeg's concat. A failed line is left out of the film.
 
+## Workflow files
+
+These apps don't use a ComfyUI node graph. All generation goes through Comfy Router's hosted models. Each app's pipeline is defined in `workflows/`, and the server reads its settings from that file at startup. **What's in the JSON is what runs.**
+
+| File | Defines |
+|---|---|
+| [`workflows/motion-studio.json`](workflows/motion-studio.json) | Router model, input fields with their defaults, allowed values and ranges, and the steps: submit, poll, check, collect, download |
+| [`workflows/verse-to-film.json`](workflows/verse-to-film.json) | Router model, line and duration limits, the per-line **prompt template**, fixed clip inputs (`sound: off`, `cfg_scale: 0.5`), caption overlay settings (font, size, position, scrim, output resolution, fps), and the steps: split, submit, poll, check, collect, download, caption, burn in, join |
+
+To change the model, the defaults, the prompt wording or the caption style, edit the JSON and restart the server. If you change the model, check its input fields on the [models page](https://docs.comfy.org/development/comfy-router/models) first. Different models take different inputs.
+
+The `steps` arrays describe the pipeline for people reading the file. The step order itself is in each `app.py`.
+
 ## Files
 
 ```
-app.py                 Motion Studio server
-static/index.html      Motion Studio UI
-poem-video/app.py      Verse to Film server
-poem-video/static/     Verse to Film UI
-requirements.txt       pinned deps for both
-.env.example           copy to .env and add your key
+app.py                         Motion Studio server
+static/index.html              Motion Studio UI
+poem-video/app.py              Verse to Film server
+poem-video/static/index.html   Verse to Film UI
+workflows/motion-studio.json   Motion Studio pipeline: model, inputs, steps
+workflows/verse-to-film.json   Verse to Film pipeline: model, prompt template, overlay, steps
+requirements.txt               pinned deps for both apps
+.env.example                   copy to .env and add your key
+LICENSE                        MIT
 ```
 
 Generated at runtime (git-ignored): `outputs/`, `poem-video/outputs/`, `jobs.json`, `poem-video/poems.json`.
@@ -79,3 +95,9 @@ Generated at runtime (git-ignored): `outputs/`, `poem-video/outputs/`, `jobs.jso
 
 - Each poem line is prompted on its own, so the model reads lines literally (for example, "It sits looking" may not show the fog). The shared style field keeps the look consistent from clip to clip.
 - These apps have **no login**. They're meant to run on localhost. Add authentication before exposing them anywhere, or anyone with the URL can spend your credits.
+
+## License
+
+[MIT](LICENSE) © 2026 Yiqing Zhao.
+
+The code in this repo is MIT. Dependencies keep their own licenses. In particular, `imageio-ffmpeg` downloads an ffmpeg binary, which is LGPL/GPL, when you install it. This repo doesn't include ffmpeg itself. Generated videos are subject to the terms of Comfy Router and the model provider.

@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Literal
 
 import httpx
 import imageio_ffmpeg
@@ -30,14 +31,17 @@ HERE = Path(__file__).parent
 ENV_PATH = HERE.parent / ".env"  # shared with the app next door
 load_dotenv(ENV_PATH, override=True)  # .env wins over the shell
 
-MODEL = "higgsfield/higgsfield-kling-3-pro"
-MAX_LINES = 8
+WORKFLOW = json.loads((HERE.parent / "workflows" / "verse-to-film.json").read_text())
+MODEL = WORKFLOW["router"]["model"]
+LIMITS = WORKFLOW["limits"]
+MAX_LINES = LIMITS["max_lines"]
+OVERLAY = WORKFLOW["overlay"]
 OUT = HERE / "outputs"
 STORE = HERE / "poems.json"
 OUT.mkdir(exist_ok=True)
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
-FONT = "/System/Library/Fonts/Supplemental/Georgia Italic.ttf"
-SIZES = {"16:9": (1280, 720), "9:16": (720, 1280), "1:1": (960, 960)}
+FONT = OVERLAY["font"]
+SIZES = {k: tuple(v) for k, v in OVERLAY["output_sizes"].items()}
 
 _store_lock = threading.Lock()
 _poem_locks: dict[str, threading.Lock] = {}
@@ -82,7 +86,7 @@ def caption_png(text: str, size: tuple[int, int], path: Path) -> None:
     w, h = size
     img = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    fs = max(28, int(min(w, h) * 0.055))
+    fs = max(28, int(min(w, h) * OVERLAY["font_size_ratio"]))
     try:
         font = ImageFont.truetype(FONT, fs)
     except OSError:
@@ -91,10 +95,10 @@ def caption_png(text: str, size: tuple[int, int], path: Path) -> None:
     wrapped = "\n".join(textwrap.wrap(text, width=chars)) or text
     box = draw.multiline_textbbox((0, 0), wrapped, font=font, align="center", spacing=fs // 3)
     tw, th = box[2] - box[0], box[3] - box[1]
-    y = int(h * 0.86) - th
+    y = int(h * OVERLAY["baseline_ratio"]) - th
     # soft scrim behind the text for legibility on any footage
     scrim = Image.new("RGBA", size, (0, 0, 0, 0))
-    ImageDraw.Draw(scrim).rectangle([0, y - fs, w, h], fill=(0, 0, 0, 110))
+    ImageDraw.Draw(scrim).rectangle([0, y - fs, w, h], fill=tuple(OVERLAY["scrim_rgba"]))
     img = Image.alpha_composite(scrim, img)
     draw = ImageDraw.Draw(img)
     draw.multiline_text(((w - tw) / 2, y), wrapped, font=font, fill=(255, 255, 255, 255),
@@ -103,7 +107,8 @@ def caption_png(text: str, size: tuple[int, int], path: Path) -> None:
     img.save(path)
 
 
-def burn_in(src: Path, png: Path, dst: Path, size: tuple[int, int], fps: int = 24) -> None:
+def burn_in(src: Path, png: Path, dst: Path, size: tuple[int, int],
+            fps: int = OVERLAY["fps"]) -> None:
     w, h = size
     vf = (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
           f"fps={fps},setsar=1[v];[v][1:v]overlay=0:0,format=yuv420p")
@@ -122,15 +127,16 @@ def concat(clips: list[Path], dst: Path) -> None:
 
 # --- per-clip state machine -----------------------------------------------------
 def build_prompt(line: str, style: str) -> str:
-    return (f"A cinematic shot visualizing this line of poetry: \"{line}\". "
-            f"{style.strip() + '. ' if style.strip() else ''}"
-            "Evocative, atmospheric, no text, letters or captions in frame.")
+    style = style.strip()
+    return (WORKFLOW["prompt_template"]
+            .replace("{style}", f"{style}. " if style else "")
+            .replace("{line}", line))
 
 
 def try_submit(poem: dict, clip: dict) -> None:
     body = {"prompt": build_prompt(clip["line"], poem["style"]),
             "aspect_ratio": poem["aspect_ratio"], "duration": poem["duration"],
-            "sound": "off", "cfg_scale": 0.5}
+            **WORKFLOW["clip_inputs"]}
     try:
         h = client().models.submit(MODEL, body)
     except InsufficientCredits:
@@ -197,8 +203,9 @@ def advance(poem: dict, idx: int, clip: dict) -> None:
 class PoemIn(BaseModel):
     poem: str = Field(min_length=1, max_length=4000)
     style: str = Field("", max_length=300)
-    aspect_ratio: str = Field("16:9", pattern=r"^(16:9|9:16|1:1)$")
-    duration: int = Field(4, ge=3, le=8)
+    aspect_ratio: Literal[tuple(LIMITS["aspect_ratios"])] = LIMITS["aspect_ratios"][0]
+    duration: int = Field(LIMITS["duration"]["default"], ge=LIMITS["duration"]["min"],
+                          le=LIMITS["duration"]["max"])
 
 
 app = FastAPI()
