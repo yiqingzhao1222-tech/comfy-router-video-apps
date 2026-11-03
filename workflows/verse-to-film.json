@@ -1,48 +1,101 @@
 {
   "name": "Verse to Film",
-  "description": "Poem-to-video: each non-empty line becomes its own clip with the line burned in on screen, then the clips are joined into one film.",
-  "router": {
-    "model": "ltx/ltx-2-5-pro",
-    "mode": "queued",
-    "docs": "https://docs.comfy.org/development/comfy-router/models/ltx/ltx-2-5-pro/code.md",
-    "schema": "https://api.comfy.org/v2/models/ltx/ltx-2-5-pro/openapi.json"
-  },
-  "limits": {
+  "description": "Poem-to-video: each non-empty line becomes its own clip, timed to how long the line takes to read aloud, with the line burned in on screen. The clips are joined in line order into one film.",
+
+  "film": {
     "max_lines": 8,
-    "duration": { "enum": [3, 4, 5, 6, 8], "default": 4 },
-    "formats": { "16:9": "1280x720", "9:16": "720x1280" }
+    "default_model": "ltx/ltx-2-5-pro",
+    "default_style": "Muted film photography, soft dawn light, slow camera drift"
   },
+
+  "reading": {
+    "notes": "Suggested clip length = words / words_per_second + comma_pause per comma + stop_pause per . ; : ! ? or dash + end_breath, rounded UP to round_to, at least min_seconds.",
+    "words_per_second": 2.3,
+    "comma_pause": 0.3,
+    "stop_pause": 0.5,
+    "end_breath": 0.5,
+    "round_to": 0.5,
+    "min_seconds": 2.0
+  },
+
+  "clip_length": {
+    "notes": "The length the user may set per line. The upper bound is also capped by the chosen model's longest duration.",
+    "min_seconds": 1.0,
+    "step": 0.5
+  },
+
   "prompt_template": "A cinematic shot visualizing this line of poetry: \"{line}\". {style}Evocative, atmospheric, no text, letters or captions in frame.",
   "prompt_template_notes": "{style} is the user's shared style text followed by '. ', or empty when no style is given.",
-  "clip_inputs": {
-    "fps": 24,
-    "generate_audio": false
+
+  "models": {
+    "ltx/ltx-2-5-pro": {
+      "label": "LTX 2.5 Pro",
+      "docs": "https://docs.comfy.org/development/comfy-router/models/ltx/ltx-2-5-pro/code.md",
+      "schema": "https://api.comfy.org/v2/models/ltx/ltx-2-5-pro/openapi.json",
+      "aspect": { "field": "resolution", "values": { "16:9": "1280x720", "9:16": "720x1280" } },
+      "duration": { "field": "duration", "kind": "enum", "values": [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20] },
+      "fixed_inputs": { "fps": 24, "generate_audio": false },
+      "output": {
+        "video_url": "result.video_url",
+        "status": "status",
+        "failed_statuses": ["failed", "canceled", "cancelled"],
+        "error_type": "error.type",
+        "error_message": "error.message"
+      }
+    },
+    "ltx/ltx-2-5-fast": {
+      "label": "LTX 2.5 Fast",
+      "docs": "https://docs.comfy.org/development/comfy-router/models/ltx/ltx-2-5-fast/code.md",
+      "schema": "https://api.comfy.org/v2/models/ltx/ltx-2-5-fast/openapi.json",
+      "aspect": { "field": "resolution", "values": { "16:9": "1280x720", "9:16": "720x1280" } },
+      "duration": { "field": "duration", "kind": "enum", "values": [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20] },
+      "fixed_inputs": { "fps": 24, "generate_audio": false },
+      "output": {
+        "video_url": "result.video_url",
+        "status": "status",
+        "failed_statuses": ["failed", "canceled", "cancelled"],
+        "error_type": "error.type",
+        "error_message": "error.message"
+      }
+    },
+    "higgsfield/higgsfield-kling-3-pro": {
+      "label": "Kling 3 Pro",
+      "docs": "https://docs.comfy.org/development/comfy-router/models/higgsfield/higgsfield-kling-3-pro/code.md",
+      "schema": "https://api.comfy.org/v2/models/higgsfield/higgsfield-kling-3-pro/openapi.json",
+      "aspect": { "field": "aspect_ratio", "values": { "16:9": "16:9", "9:16": "9:16", "1:1": "1:1" } },
+      "duration": { "field": "duration", "kind": "range", "min": 3, "max": 15, "step": 1 },
+      "fixed_inputs": { "sound": "off", "cfg_scale": 0.5 },
+      "output": {
+        "video_url": "video.url",
+        "status": "status",
+        "failed_statuses": ["nsfw", "failed", "canceled"],
+        "error_type": "status",
+        "error_message": "error"
+      }
+    }
   },
-  "output": {
-    "video_url": "result.video_url",
-    "status": "status",
-    "failed_statuses": ["failed", "canceled", "cancelled"],
-    "error_type": "error.type",
-    "error_message": "error.message"
-  },
+
   "overlay": {
     "font": "/System/Library/Fonts/Supplemental/Georgia Italic.ttf",
     "font_fallback": "Pillow default font",
     "font_size_ratio": 0.055,
     "baseline_ratio": 0.86,
     "scrim_rgba": [0, 0, 0, 110],
-    "output_sizes": { "16:9": [1280, 720], "9:16": [720, 1280] },
+    "output_sizes": { "16:9": [1280, 720], "9:16": [720, 1280], "1:1": [960, 960] },
     "fps": 24
   },
+
   "steps": [
-    { "id": "split", "does": "one clip per non-empty line, up to max_lines" },
-    { "id": "submit", "call": "models.submit(model, {prompt, duration, resolution: formats[aspect], ...clip_inputs})", "per": "line, all at once", "on_409_or_429": "mark WAITING and resubmit on the next poll" },
+    { "id": "split", "does": "one row per non-empty line, up to film.max_lines, each with a suggested length from `reading`" },
+    { "id": "plan", "does": "generate length = smallest model duration >= requested length (enum), or requested rounded up to the model's step (range); requested length is capped at the model's maximum" },
+    { "id": "submit", "call": "models.submit(model, {prompt, <aspect field>, <duration field>: generate length, ...fixed_inputs})", "per": "line, all at once", "on_409_or_429": "mark WAITING and resubmit on the next poll" },
     { "id": "poll", "call": "models.handle(model, request_id).status()", "until": "COMPLETED" },
-    { "id": "check", "fail_if": ["status.error_type is set", "result.status in output.failed_statuses", "result.video_url missing"] },
-    { "id": "collect", "call": "handle.get()", "output": "result.video_url" },
+    { "id": "check", "fail_if": ["status.error_type is set", "result status in output.failed_statuses", "video URL missing"] },
+    { "id": "collect", "call": "handle.get()", "output": "the model's output.video_url" },
     { "id": "download", "to": "poem-video/outputs/{poem_id}_{n}_raw.mp4" },
     { "id": "caption", "tool": "Pillow", "does": "render the line as a transparent PNG at the output size" },
-    { "id": "burn_in", "tool": "ffmpeg", "does": "scale/crop to output size, overlay caption, H.264, no audio", "to": "poem-video/outputs/{poem_id}_{n}.mp4" },
-    { "id": "join", "tool": "ffmpeg concat", "when": "every clip is DONE or FAILED and at least one is DONE", "to": "poem-video/outputs/{poem_id}_film.mp4" }
+    { "id": "burn_in_and_trim", "tool": "ffmpeg", "does": "scale/crop to output size, overlay caption, pad the last frame if the model came back short, trim to the exact requested length, H.264, no audio", "to": "poem-video/outputs/{poem_id}_{n}.mp4" },
+    { "id": "retry", "does": "a FAILED line can be resubmitted on its own; the film waits for it" },
+    { "id": "join", "tool": "ffmpeg concat (re-encoded)", "when": "every line is DONE", "order": "line order", "to": "poem-video/outputs/{poem_id}_film.mp4" }
   ]
 }

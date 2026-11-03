@@ -5,33 +5,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Verse to Film</title>
 <style>
-  :root { --bg:#f6f2ea; --panel:#fffdf8; --line:#e2dacb; --text:#2a2622; --muted:#7d7468; --accent:#8a3b2e; --err:#b42318; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#16140f; --panel:#1f1c16; --line:#383227; --text:#efe9df; --muted:#a39985; --accent:#e08a6f; --err:#ff7b6b; } }
+  :root { --bg:#f6f2ea; --panel:#fffdf8; --line:#e2dacb; --text:#2a2622; --muted:#7d7468; --accent:#8a3b2e; --err:#b42318; --ok:#2f7d32; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#16140f; --panel:#1f1c16; --line:#383227; --text:#efe9df; --muted:#a39985; --accent:#e08a6f; --err:#ff7b6b; --ok:#7bc47f; } }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,sans-serif; }
   main { max-width:980px; margin:0 auto; padding:36px 16px 72px; }
   h1 { font:italic 600 30px/1.1 Georgia,serif; margin:0 0 6px; }
+  h3 { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; font-weight:600; }
   .sub { color:var(--muted); font-size:13px; margin:0 0 24px; }
-  form { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; display:grid; gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  form { display:grid; gap:16px; }
   textarea, input, select { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font:inherit; }
-  textarea { width:100%; min-height:150px; resize:vertical; font:italic 17px/1.6 Georgia,serif; }
+  textarea { width:100%; min-height:130px; resize:vertical; font:italic 17px/1.6 Georgia,serif; }
   .row { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
   label { display:grid; gap:4px; font-size:12px; color:var(--muted); }
-  .grow { flex:1 1 220px; } .grow input { width:100%; }
-  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:600; cursor:pointer; }
+  .grow { flex:1 1 240px; } .grow input { width:100%; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:600; cursor:pointer; font:inherit; }
   button:disabled { opacity:.5; cursor:default; }
-  .hint { font-size:12px; color:var(--muted); }
+  button.ghost { background:none; color:var(--accent); padding:0; font-size:12px; font-weight:600; }
   .banner { margin-top:12px; padding:10px 12px; border:1px solid var(--err); color:var(--err); border-radius:8px; display:none; }
-  .poem { margin-top:28px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
-  .poem h2 { font-size:13px; font-weight:600; color:var(--muted); margin:0 0 12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:11px; color:var(--muted); font-weight:600; padding:0 8px 6px; letter-spacing:.04em; }
+  td { border-top:1px solid var(--line); padding:8px; vertical-align:middle; }
+  td.n { color:var(--muted); width:28px; font-size:12px; }
+  td.text { font:italic 16px/1.4 Georgia,serif; }
+  td.len input { width:76px; }
+  td.note { font-size:12px; color:var(--muted); white-space:nowrap; }
+  .tag { font-size:10px; font-weight:700; letter-spacing:.05em; padding:1px 6px; border-radius:99px; border:1px solid currentColor; margin-left:6px; }
+  .tag.s { color:var(--ok); } .tag.e { color:var(--accent); }
+  .foot { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-top:12px; font-size:13px; color:var(--muted); }
+  .empty { color:var(--muted); font-size:13px; padding:8px; }
+  .poem { margin-top:28px; }
+  .poem h2 { font-size:13px; font-weight:600; color:var(--muted); margin:0 0 12px; }
   .film video { width:100%; border-radius:8px; background:#000; max-height:560px; }
+  .blocked { font-size:13px; color:var(--err); margin-bottom:8px; }
   .clips { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; margin-top:14px; }
   .clip { border:1px solid var(--line); border-radius:10px; padding:10px; display:grid; gap:8px; align-content:start; }
   .clip q { font:italic 15px/1.4 Georgia,serif; quotes:none; }
+  .clip .len { font-size:12px; color:var(--muted); }
   .clip video { width:100%; border-radius:6px; background:#000; }
-  .ph { aspect-ratio:16/9; border-radius:6px; background:repeating-linear-gradient(135deg,var(--line) 0 6px,transparent 6px 12px); display:grid; place-items:center; font-size:11px; color:var(--muted); }
+  .ph { border-radius:6px; background:repeating-linear-gradient(135deg,var(--line) 0 6px,transparent 6px 12px); display:grid; place-items:center; font-size:11px; color:var(--muted); }
   .pill { font-size:11px; font-weight:700; letter-spacing:.05em; padding:2px 8px; border-radius:99px; border:1px solid currentColor; justify-self:start; }
-  .WAITING, .IN_QUEUE { color:#3b6ea5; } .IN_PROGRESS { color:#a56d00; } .DONE { color:#2f7d32; } .FAILED { color:var(--err); }
+  .WAITING, .IN_QUEUE { color:#3b6ea5; } .IN_PROGRESS { color:#a56d00; } .DONE { color:var(--ok); } .FAILED { color:var(--err); }
   .spin { width:9px; height:9px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; display:inline-block; animation:s 1s linear infinite; margin-right:4px; vertical-align:-1px; }
   @keyframes s { to { transform:rotate(360deg); } }
   a { color:var(--accent); font-size:13px; }
@@ -41,20 +56,37 @@
 <body>
 <main>
   <h1>Verse to Film</h1>
-  <p class="sub">Paste a short poem. Each line becomes its own clip with the words on screen, then the clips are joined into one film. Generated with <code id="model">…</code> via Comfy Router.</p>
+  <p class="sub">Paste a short poem. Each line becomes its own clip, timed to how long it takes to read aloud, with the words on screen. Then every clip is joined in order into one film, generated through Comfy Router.</p>
 
   <form id="f">
-    <textarea id="poem" required>The fog comes
+    <section class="card">
+      <h3>Film</h3>
+      <div class="row">
+        <label class="grow">Visual style (applied to every line)<input id="style"></label>
+        <label>Model<select id="model"></select></label>
+        <label>Aspect ratio<select id="aspect_ratio"></select></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Poem</h3>
+      <textarea id="poem" required>The fog comes
 on little cat feet.
 It sits looking
 over harbor and city</textarea>
-    <div class="row">
-      <label class="grow">Visual style (applied to every line)<input id="style" value="Muted film photography, soft dawn light, slow camera drift"></label>
-      <label>Aspect<select id="aspect_ratio"></select></label>
-      <label>Seconds per line<select id="duration"></select></label>
-      <button id="go">Make film</button>
-    </div>
-    <div class="hint" id="hint"></div>
+    </section>
+
+    <section class="card">
+      <h3>Lines</h3>
+      <table>
+        <thead><tr><th>#</th><th>Line</th><th>Clip length (s)</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="foot">
+        <span id="total"></span>
+        <button id="go">Make film</button>
+      </div>
+    </section>
   </form>
   <div class="banner" id="banner"></div>
   <div id="poems"></div>
@@ -63,38 +95,103 @@ over harbor and city</textarea>
 const $ = (id) => document.getElementById(id);
 const LABEL = { WAITING:"WAITING", IN_QUEUE:"QUEUED", IN_PROGRESS:"RUNNING", DONE:"FINISHED", FAILED:"FAILED" };
 const LIVE = (s) => s === "WAITING" || s === "IN_QUEUE" || s === "IN_PROGRESS";
-let MAX = 8;
+let CFG = null, PLAN = null;
+const overrides = new Map();  // "index|line text" -> seconds the user typed
 
 function banner(m) { $("banner").style.display = m ? "block" : "none"; $("banner").textContent = m || ""; }
-function lines() { return $("poem").value.split("\n").map(s => s.trim()).filter(Boolean); }
-function hint() {
-  const n = lines().length;
-  $("hint").textContent = `${n} line${n === 1 ? "" : "s"} → ${n} clip${n === 1 ? "" : "s"}` + (n > MAX ? ` (max ${MAX})` : "") + " · each clip is one generation billed to your workspace";
-}
-$("poem").addEventListener("input", hint);
-
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const fmt = (s) => (Math.round(s * 10) / 10).toString().replace(/\.0$/, "") + " s";
+const model = () => CFG.models.find(m => m.id === $("model").value);
+function lines() { return $("poem").value.split("\n").map(s => s.trim()).filter(Boolean); }
+const key = (i, ln) => i + "|" + ln;
 
+// ---- film-level controls ----
+function fillAspects() {
+  const m = model(), prev = $("aspect_ratio").value;
+  $("aspect_ratio").innerHTML = "";
+  for (const a of m.aspects) $("aspect_ratio").append(new Option(a, a, false, a === prev));
+}
+
+// ---- line plan (math lives on the server, in one place) ----
+let planTimer = null;
+function schedulePlan() { clearTimeout(planTimer); planTimer = setTimeout(refreshPlan, 200); }
+
+async function refreshPlan() {
+  if (!model()) return;
+  const ls = lines();
+  const seconds = ls.map((ln, i) => overrides.has(key(i, ln)) ? overrides.get(key(i, ln)) : null);
+  const r = await fetch("/api/plan", { method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ poem: $("poem").value, model: model().id, seconds }) });
+  PLAN = await r.json();
+  if (!r.ok) { banner(PLAN.detail); return; }
+  renderRows();
+}
+
+function renderRows() {
+  const tbody = $("rows"); tbody.innerHTML = "";
+  const m = model();
+  if (!PLAN.rows.length) { const tr = el("tr"); const td = el("td", "empty", "Type or paste a poem above. One row per line."); td.colSpan = 4; tr.append(td); tbody.append(tr); }
+  PLAN.rows.forEach((r, i) => {
+    const tr = el("tr");
+    if (i >= CFG.max_lines) tr.style.opacity = .4;
+    tr.append(el("td", "n", i + 1), el("td", "text", r.line));
+    const td = el("td", "len");
+    const inp = el("input"); inp.type = "number"; inp.step = CFG.clip_length.step;
+    inp.min = CFG.clip_length.min_seconds; inp.max = m.max_seconds; inp.value = r.seconds;
+    inp.addEventListener("change", () => {
+      const v = parseFloat(inp.value);
+      if (isNaN(v)) overrides.delete(key(i, r.line)); else overrides.set(key(i, r.line), v);
+      refreshPlan();
+    });
+    td.append(inp);
+    if (r.edited) {
+      td.append(el("span", "tag e", "EDITED"));
+      const reset = el("button", "ghost", ` reset to ${fmt(r.suggested)}`); reset.type = "button";
+      reset.addEventListener("click", () => { overrides.delete(key(i, r.line)); refreshPlan(); });
+      td.append(reset);
+    } else td.append(el("span", "tag s", "SUGGESTED"));
+    tr.append(td);
+    let note = r.generate_seconds === r.seconds ? `generates ${fmt(r.generate_seconds)}`
+      : `generates ${fmt(r.generate_seconds)} → trimmed to ${fmt(r.seconds)}`;
+    if (r.capped) note += ` (capped at ${m.label}'s max)`;
+    tr.append(el("td", "note", note));
+    tbody.append(tr);
+  });
+  const over = PLAN.too_many ? ` · only the first ${CFG.max_lines} lines are used` : "";
+  $("total").textContent = PLAN.rows.length
+    ? `${Math.min(PLAN.rows.length, CFG.max_lines)} clips · film length ${fmt(PLAN.total_seconds)} · ${fmt(PLAN.generate_total)} generated and billed${over}`
+    : "";
+}
+
+// ---- results ----
 function render(p) {
   let box = document.getElementById("p-" + p.id);
-  if (!box) { box = el("section", "poem"); box.id = "p-" + p.id; $("poems").prepend(box); }
+  if (!box) { box = el("section", "card poem"); box.id = "p-" + p.id; $("poems").prepend(box); }
   box.innerHTML = "";
   const done = p.clips.filter(c => c.state === "DONE").length;
-  const h = el("h2"); h.append(`${done} of ${p.clips.length} clips finished · ${p.aspect_ratio} · ${p.duration}s per line`);
-  box.append(h);
+  const failed = p.clips.filter(c => c.state === "FAILED").length;
+  const meta = [`${done} of ${p.clips.length} clips finished`, p.model_label || p.model, p.aspect_ratio];
+  if (p.total_seconds) meta.push(`film ${fmt(p.total_seconds)}`);
+  box.append(el("h2", null, meta.filter(Boolean).join(" · ")));
   if (p.film) {
     const f = el("div", "film"); const v = el("video"); v.src = p.film; v.controls = true; v.playsInline = true;
-    const a = el("a", null, "Download full film (MP4)"); a.href = "/download/" + p.film.split("/").pop();
+    const a = el("a", null, `Download full film (MP4${p.film_seconds ? ", " + fmt(p.film_seconds) : ""})`);
+    a.href = "/download/" + p.film.split("/").pop();
     f.append(v, a); box.append(f);
+  } else if (failed && p.model) {
+    box.append(el("div", "blocked", `The film is waiting on ${failed} failed line${failed > 1 ? "s" : ""}. Retry ${failed > 1 ? "them" : "it"} below and the film will be built in line order.`));
   }
+  if (p.film_error) box.append(el("div", "err", "Joining failed: " + p.film_error));
   const grid = el("div", "clips");
-  p.clips.forEach((c) => {
+  p.clips.forEach((c, i) => {
     const card = el("div", "clip");
     const pill = el("span", "pill " + c.state);
     if (LIVE(c.state)) pill.append(el("span", "spin"));
     pill.append(LABEL[c.state] || c.state);
     if (c.state === "IN_QUEUE" && c.queue_position != null) pill.append(` · #${c.queue_position}`);
-    card.append(el("q", null, c.line));
+    card.append(el("q", null, `${i + 1}. ${c.line}`));
+    if (c.seconds) card.append(el("div", "len", c.generate_seconds && c.generate_seconds !== c.seconds
+      ? `${fmt(c.seconds)} (generated ${fmt(c.generate_seconds)}, trimmed)` : fmt(c.seconds)));
     if (c.state === "DONE") {
       const v = el("video"); v.src = c.file; v.controls = true; v.playsInline = true; v.muted = true;
       const a = el("a", null, "Download clip"); a.href = "/download/" + c.file.split("/").pop();
@@ -103,7 +200,21 @@ function render(p) {
       const ph = el("div", "ph", c.state === "FAILED" ? "no clip" : "generating…");
       ph.style.aspectRatio = p.aspect_ratio.replace(":", "/");
       card.append(ph, pill);
-      if (c.state === "FAILED") card.append(el("div", "err", `error_type: ${c.error_type}${c.error ? " — " + c.error : ""}`));
+      if (c.state === "FAILED") {
+        card.append(el("div", "err", `error_type: ${c.error_type}${c.error ? " — " + c.error : ""}`));
+        if (p.model) {
+          const b = el("button", null, "Retry this line"); b.type = "button";
+          b.addEventListener("click", async () => {
+            b.disabled = true; banner("");
+            const r = await fetch(`/api/poems/${p.id}/clips/${i}/retry`, { method:"POST" });
+            const j = await r.json();
+            if (r.status === 402) { banner(j.detail); if (j.poem) render(j.poem); return; }
+            if (!r.ok) { banner(j.detail); b.disabled = false; return; }
+            render(j); poll(j.id);
+          });
+          card.append(b);
+        }
+      }
     }
     grid.append(card);
   });
@@ -125,11 +236,13 @@ async function poll(id) {
 
 $("f").addEventListener("submit", async (e) => {
   e.preventDefault(); banner("");
-  if (lines().length > MAX) { banner(`Keep it to ${MAX} lines or fewer.`); return; }
+  if (!PLAN || !PLAN.rows.length) return;
+  if (PLAN.too_many) { banner(`Keep it to ${CFG.max_lines} lines or fewer.`); return; }
   $("go").disabled = true;
   try {
-    const r = await fetch("/api/poems", { method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ poem:$("poem").value, style:$("style").value, aspect_ratio:$("aspect_ratio").value, duration:+$("duration").value }) });
+    const body = { style: $("style").value, model: model().id, aspect_ratio: $("aspect_ratio").value,
+                   lines: PLAN.rows.map(r => ({ line: r.line, seconds: r.seconds })) };
+    const r = await fetch("/api/poems", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
     const j = await r.json();
     if (r.status === 402) { banner(j.detail); if (j.poem) { render(j.poem); poll(j.poem.id); } return; }
     if (!r.ok) { banner(typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)); return; }
@@ -138,12 +251,15 @@ $("f").addEventListener("submit", async (e) => {
 });
 
 (async () => {
-  const h = await (await fetch("/api/health")).json();
-  MAX = h.max_lines; hint();
-  $("model").textContent = h.model;
-  for (const f of h.formats) $("aspect_ratio").append(new Option(f, f));
-  for (const d of h.durations) $("duration").append(new Option(`${d}s`, d, false, d === h.default_duration));
-  if (!h.key_present) banner(`COMFY_API_KEY is missing. Put it in ${h.env_path} and restart the server.`);
+  CFG = await (await fetch("/api/config")).json();
+  if (!CFG.key_present) { banner(`COMFY_API_KEY is missing. Put it in ${CFG.env_path} and restart the server.`); return; }
+  if (!CFG.models.length) { banner("None of the models in workflows/verse-to-film.json are in your workspace's Router catalog" + (CFG.catalog_error ? ` (${CFG.catalog_error})` : ".")); return; }
+  $("style").value = CFG.default_style;
+  for (const m of CFG.models) $("model").append(new Option(m.label, m.id, false, m.id === CFG.default_model));
+  fillAspects();
+  $("model").addEventListener("change", () => { fillAspects(); refreshPlan(); });
+  $("poem").addEventListener("input", schedulePlan);
+  refreshPlan();
   for (const p of (await (await fetch("/api/poems")).json()).reverse()) {
     render(p); if (p.clips.some(c => LIVE(c.state))) poll(p.id);
   }
