@@ -2,22 +2,35 @@
   "name": "Motion Studio",
   "description": "Text-to-video: one prompt becomes one clip.",
   "router": {
-    "model": "higgsfield/higgsfield-kling-3-pro",
+    "model": "ltx/ltx-2-5-pro",
     "mode": "queued",
-    "docs": "https://docs.comfy.org/development/comfy-router/models/higgsfield/higgsfield-kling-3-pro/code.md"
+    "docs": "https://docs.comfy.org/development/comfy-router/models/ltx/ltx-2-5-pro/code.md",
+    "schema": "https://api.comfy.org/v2/models/ltx/ltx-2-5-pro/openapi.json"
   },
   "inputs": {
-    "prompt": { "type": "string", "max_length": 2500 },
-    "aspect_ratio": { "type": "string", "enum": ["16:9", "9:16", "1:1"], "default": "16:9" },
-    "duration": { "type": "integer", "min": 3, "max": 15, "default": 5 },
-    "sound": { "type": "string", "enum": ["on", "off"], "default": "on" },
-    "cfg_scale": { "type": "number", "min": 0, "max": 1, "default": 0.5 }
+    "prompt": { "type": "string", "max_length": 2500, "label": "Prompt" },
+    "resolution": {
+      "type": "string", "label": "Resolution",
+      "enum": ["1280x720", "720x1280", "1920x1080", "1080x1920"],
+      "labels": { "1280x720": "720p 16:9", "720x1280": "720p 9:16", "1920x1080": "1080p 16:9", "1080x1920": "1080p 9:16" },
+      "default": "1280x720"
+    },
+    "duration": { "type": "integer", "label": "Duration (s)", "enum": [2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20], "default": 5 },
+    "fps": { "type": "integer", "label": "FPS", "enum": [24, 25, 48, 50], "default": 25 },
+    "generate_audio": { "type": "boolean", "label": "Audio", "default": true }
+  },
+  "output": {
+    "video_url": "result.video_url",
+    "status": "status",
+    "failed_statuses": ["failed", "canceled", "cancelled"],
+    "error_type": "error.type",
+    "error_message": "error.message"
   },
   "steps": [
     { "id": "submit", "call": "models.submit(model, inputs)", "stores": ["model", "request_id"] },
     { "id": "poll", "call": "models.handle(model, request_id).status()", "until": "COMPLETED", "shows": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"] },
-    { "id": "check", "fail_if": ["status.error_type is set", "result.status in [nsfw, failed, canceled]", "result.video.url missing"] },
-    { "id": "collect", "call": "handle.get()", "output": "result.video.url" },
-    { "id": "download", "to": "outputs/{job_id}.mp4", "why": "Router keeps results for 24 hours" }
+    { "id": "check", "fail_if": ["status.error_type is set", "result.status in output.failed_statuses", "result.video_url missing"] },
+    { "id": "collect", "call": "handle.get()", "output": "result.video_url" },
+    { "id": "download", "to": "outputs/{job_id}.mp4", "why": "results and output URLs expire after 24 hours" }
   ]
 }

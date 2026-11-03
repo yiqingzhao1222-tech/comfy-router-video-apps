@@ -1,4 +1,6 @@
-"""Local text-to-video app: Higgsfield Kling 3 Pro through Comfy Router.
+"""Local text-to-video app: LTX 2.5 Pro through Comfy Router.
+
+Model, inputs and output paths come from workflows/motion-studio.json.
 
 Generation is queued with models.submit(); the browser polls /api/jobs/{id},
 which does one status() read per poll and, once COMPLETED, collects the
@@ -31,6 +33,16 @@ load_dotenv(ROOT / ".env", override=True)  # .env wins over the shell
 WORKFLOW = json.loads((ROOT / "workflows" / "motion-studio.json").read_text())
 MODEL = WORKFLOW["router"]["model"]
 _IN = WORKFLOW["inputs"]
+_OUT = WORKFLOW["output"]
+
+
+def dig(obj, path: str):
+    """Read a dotted path like 'result.video_url' out of a provider result."""
+    for part in path.split("."):
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(part)
+    return obj
 OUTPUTS = ROOT / "outputs"
 JOBS_FILE = ROOT / "jobs.json"
 OUTPUTS.mkdir(exist_ok=True)
@@ -92,12 +104,10 @@ def router_error(exc: Exception) -> JSONResponse:
 # --- API -------------------------------------------------------------------
 class GenerateIn(BaseModel):
     prompt: str = Field(min_length=1, max_length=_IN["prompt"]["max_length"])
-    aspect_ratio: Literal[tuple(_IN["aspect_ratio"]["enum"])] = _IN["aspect_ratio"]["default"]
-    duration: int = Field(_IN["duration"]["default"], ge=_IN["duration"]["min"],
-                          le=_IN["duration"]["max"])
-    sound: Literal[tuple(_IN["sound"]["enum"])] = _IN["sound"]["default"]
-    cfg_scale: float = Field(_IN["cfg_scale"]["default"], ge=_IN["cfg_scale"]["min"],
-                             le=_IN["cfg_scale"]["max"])
+    resolution: Literal[tuple(_IN["resolution"]["enum"])] = _IN["resolution"]["default"]
+    duration: Literal[tuple(_IN["duration"]["enum"])] = _IN["duration"]["default"]
+    fps: Literal[tuple(_IN["fps"]["enum"])] = _IN["fps"]["default"]
+    generate_audio: bool = _IN["generate_audio"]["default"]
 
 
 app = FastAPI()
@@ -106,7 +116,7 @@ app = FastAPI()
 @app.get("/api/health")
 def health():
     return {"model": MODEL, "key_present": bool(os.environ.get("COMFY_API_KEY")),
-            "env_path": str(ROOT / ".env")}
+            "env_path": str(ROOT / ".env"), "inputs": _IN}
 
 
 @app.post("/api/generate")
@@ -174,12 +184,12 @@ def poll(job_id: str):
         return save_job(job)
 
     job["result"] = result if isinstance(result, dict) else {"binary": True}
-    pstatus = result.get("status") if isinstance(result, dict) else None
-    url = ((result.get("video") or {}).get("url")) if isinstance(result, dict) else None
-    if pstatus in ("nsfw", "failed", "canceled") or not url:
-        job.update(state="FAILED", error_type=pstatus or "no_output",
-                   error=(result.get("error") if isinstance(result, dict) else None)
-                   or "The model finished without a video.")
+    pstatus = dig(result, _OUT["status"])
+    url = dig(result, _OUT["video_url"])
+    if pstatus in _OUT["failed_statuses"] or not url:
+        job.update(state="FAILED",
+                   error_type=dig(result, _OUT["error_type"]) or pstatus or "no_output",
+                   error=dig(result, _OUT["error_message"]) or "The model finished without a video.")
         return save_job(job)
 
     # Download promptly: Router keeps results 24h and provider URLs can expire.

@@ -41,7 +41,7 @@
 <body>
 <main>
   <h1>Verse to Film</h1>
-  <p class="sub">Paste a short poem. Each line becomes its own clip with the words on screen, then the clips are joined into one film. Generated with <code>higgsfield/higgsfield-kling-3-pro</code> via Comfy Router.</p>
+  <p class="sub">Paste a short poem. Each line becomes its own clip with the words on screen, then the clips are joined into one film. Generated with <code id="model">…</code> via Comfy Router.</p>
 
   <form id="f">
     <textarea id="poem" required>The fog comes
@@ -50,8 +50,8 @@ It sits looking
 over harbor and city</textarea>
     <div class="row">
       <label class="grow">Visual style (applied to every line)<input id="style" value="Muted film photography, soft dawn light, slow camera drift"></label>
-      <label>Aspect<select id="aspect_ratio"><option>16:9</option><option>9:16</option><option>1:1</option></select></label>
-      <label>Seconds per line<input id="duration" type="number" min="3" max="8" value="4" style="width:80px"></label>
+      <label>Aspect<select id="aspect_ratio"></select></label>
+      <label>Seconds per line<select id="duration"></select></label>
       <button id="go">Make film</button>
     </div>
     <div class="hint" id="hint"></div>
@@ -140,6 +140,9 @@ $("f").addEventListener("submit", async (e) => {
 (async () => {
   const h = await (await fetch("/api/health")).json();
   MAX = h.max_lines; hint();
+  $("model").textContent = h.model;
+  for (const f of h.formats) $("aspect_ratio").append(new Option(f, f));
+  for (const d of h.durations) $("duration").append(new Option(`${d}s`, d, false, d === h.default_duration));
   if (!h.key_present) banner(`COMFY_API_KEY is missing. Put it in ${h.env_path} and restart the server.`);
   for (const p of (await (await fetch("/api/poems")).json()).reverse()) {
     render(p); if (p.clips.some(c => LIVE(c.state))) poll(p.id);
