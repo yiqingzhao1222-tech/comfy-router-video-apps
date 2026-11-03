@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion Studio</title>
+<style>
+  :root { --bg:#0e0f12; --panel:#17191e; --line:#2a2d35; --text:#eceef2; --muted:#9aa0ab; --accent:#c8ff3d; --err:#ff6b6b; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 13px; }
+  form { background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 16px; display:grid; gap:12px; }
+  textarea { width:100%; min-height:96px; resize:vertical; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:end; }
+  label { display:grid; gap:4px; font-size:12px; color:var(--muted); }
+  select, input { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
+  button { background:var(--accent); color:#111; border:0; border-radius:8px; padding:9px 18px; font-weight:600; cursor:pointer; margin-left:auto; }
+  button:disabled { opacity:.5; cursor:default; }
+  .banner { margin-top:12px; padding:10px 12px; border-radius:8px; border:1px solid var(--err); color:var(--err); display:none; }
+  .jobs { margin-top:24px; display:grid; gap:16px; }
+  .job { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .job p { margin:0 0 8px; }
+  .meta { display:flex; gap:10px; align-items:center; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+  .pill { padding:2px 8px; border-radius:99px; border:1px solid var(--line); font-weight:600; font-size:11px; letter-spacing:.04em; }
+  .IN_QUEUE { color:#9ecbff; } .IN_PROGRESS { color:#ffd166; } .DONE { color:var(--accent); } .FAILED { color:var(--err); }
+  .spin { width:10px; height:10px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; display:inline-block; animation:s 1s linear infinite; vertical-align:-1px; margin-right:4px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  video { width:100%; max-height:540px; margin-top:10px; border-radius:8px; background:#000; }
+  a.dl { color:var(--accent); font-size:13px; }
+  .err { color:var(--err); font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Motion Studio</h1>
+  <p class="sub">Text-to-video with <code>higgsfield/higgsfield-kling-3-pro</code> via Comfy Router</p>
+
+  <form id="f">
+    <textarea id="prompt" required maxlength="2500" placeholder="Describe the shot…">A cinematic glass pavilion in a misty pine forest at sunrise, slow dolly-in</textarea>
+    <div class="row">
+      <label>Aspect<select id="aspect_ratio"><option>16:9</option><option>9:16</option><option>1:1</option></select></label>
+      <label>Duration (s)<input id="duration" type="number" min="3" max="15" value="5" style="width:80px"></label>
+      <label>Sound<select id="sound"><option>on</option><option>off</option></select></label>
+      <label>CFG<input id="cfg_scale" type="number" min="0" max="1" step="0.1" value="0.5" style="width:70px"></label>
+      <button id="go">Generate</button>
+    </div>
+  </form>
+  <div class="banner" id="banner"></div>
+  <div class="jobs" id="jobs"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const LABEL = { IN_QUEUE: "QUEUED", IN_PROGRESS: "RUNNING", DONE: "FINISHED", FAILED: "FAILED" };
+const timers = {};
+
+function banner(msg) { $("banner").style.display = msg ? "block" : "none"; $("banner").textContent = msg || ""; }
+
+function render(job) {
+  let el = document.getElementById("job-" + job.id);
+  if (!el) { el = document.createElement("div"); el.className = "job"; el.id = "job-" + job.id; $("jobs").prepend(el); }
+  const live = job.state === "IN_QUEUE" || job.state === "IN_PROGRESS";
+  const pos = job.state === "IN_QUEUE" && job.queue_position != null ? ` · position ${job.queue_position}` : "";
+  el.innerHTML = `
+    <p></p>
+    <div class="meta">
+      <span class="pill ${job.state}">${live ? '<span class="spin"></span>' : ""}${LABEL[job.state] || job.state}</span>
+      <span>${job.input.aspect_ratio} · ${job.input.duration}s · sound ${job.input.sound}${pos}</span>
+      <span title="Router request id">${job.request_id}</span>
+    </div>
+    ${job.state === "DONE" ? `<video src="${job.file}" controls playsinline></video>
+      <div><a class="dl" href="/download/${job.file.split("/").pop()}">Download MP4</a></div>` : ""}
+    ${job.state === "FAILED" ? `<div class="err"></div>` : ""}`;
+  el.querySelector("p").textContent = job.input.prompt;
+  if (job.state === "FAILED") el.querySelector(".err").textContent = `error_type: ${job.error_type}${job.error ? " — " + job.error : ""}`;
+}
+
+async function poll(id) {
+  try {
+    const r = await fetch("/api/jobs/" + id);
+    const j = await r.json();
+    if (r.status === 402) { banner(j.detail); return; }
+    if (!r.ok) throw new Error(j.detail || r.statusText);
+    render(j);
+    if (j.state === "IN_QUEUE" || j.state === "IN_PROGRESS") {
+      timers[id] = setTimeout(() => poll(id), Math.max(3, j.retry_after || 5) * 1000);
+    }
+  } catch (e) { timers[id] = setTimeout(() => poll(id), 8000); }
+}
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault(); banner(""); $("go").disabled = true;
+  try {
+    const body = {
+      prompt: $("prompt").value.trim(), aspect_ratio: $("aspect_ratio").value,
+      duration: +$("duration").value, sound: $("sound").value, cfg_scale: +$("cfg_scale").value,
+    };
+    const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) { banner(r.status === 402 ? j.detail : `${j.error || r.status}: ${typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)}`); return; }
+    render(j); poll(j.id);
+  } finally { $("go").disabled = false; }
+});
+
+(async () => {
+  const h = await (await fetch("/api/health")).json();
+  if (!h.key_present) banner(`COMFY_API_KEY is missing. Put it in ${h.env_path} and restart the server.`);
+  for (const j of (await (await fetch("/api/jobs")).json()).reverse()) {
+    render(j);
+    if (j.state === "IN_QUEUE" || j.state === "IN_PROGRESS") poll(j.id);
+  }
+})();
+</script>
+</body>
+</html>

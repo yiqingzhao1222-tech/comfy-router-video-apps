@@ -1,0 +1,14 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.rtf
+
+# local env & runtime data
+.venv/
+__pycache__/
+outputs/
+jobs.json
+poems.json
+*.log
+.DS_Store
